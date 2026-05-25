@@ -54,6 +54,42 @@ export class ControlPanel {
     document.getElementById('freq-input').value = hzToMhz(hz);
   }
 
+  /**
+   * Programmatically tune to *hz* — updates the display and sends to the API.
+   * Safe to call from external code (e.g. canvas click-to-tune).
+   */
+  tuneToHz(hz) {
+    const rounded = Math.round(hz);
+    document.getElementById('freq-input').value = hzToMhz(rounded);
+    this._currentHz = rounded;
+    this._post('/api/frequency', { hz: rounded })
+      .then(() => {
+        const spanEl  = document.getElementById('span-select');
+        const spanHz  = parseInt(spanEl.value, 10);
+        return this._post('/api/spectrum', { center_hz: rounded, span_hz: spanHz });
+      })
+      .then(() => this._onFreq && this._onFreq(rounded))
+      .catch((e) => console.error('tuneToHz failed:', e));
+  }
+
+  /**
+   * Programmatically set the spectrum span — updates the selector and sends to
+   * the API.  The nearest selectable option is chosen; if *spanHz* does not
+   * match any option, the closest one is picked.
+   */
+  setSpanHz(spanHz) {
+    const spanEl  = document.getElementById('span-select');
+    const options = Array.from(spanEl.options).map(o => parseInt(o.value, 10));
+    // Pick the option with the smallest absolute difference
+    const best = options.reduce((a, b) =>
+      Math.abs(b - spanHz) < Math.abs(a - spanHz) ? b : a
+    );
+    spanEl.value = String(best);
+    this._post('/api/spectrum', { center_hz: this._currentHz, span_hz: best })
+      .then(() => this._onSpan && this._onSpan(best))
+      .catch((e) => console.error('setSpanHz failed:', e));
+  }
+
   /** Update signal level badge. */
   setSignalLevel(dbm) {
     const el = document.getElementById('signal-value');

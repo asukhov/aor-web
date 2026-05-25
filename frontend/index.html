@@ -112,12 +112,22 @@
       <div id="spectrum-wrap">
         <canvas id="spectrum-canvas"></canvas>
         <div id="freq-axis-top"></div>   <!-- frequency labels drawn by JS -->
+        <div class="canvas-overlay">
+          <div class="freq-cursor"    style="display:none"></div>
+          <div class="freq-selection" style="display:none"></div>
+          <div class="freq-tooltip"   style="display:none"></div>
+        </div>
       </div>
 
       <!-- Waterfall -->
       <div id="waterfall-wrap">
         <canvas id="waterfall-canvas"></canvas>
         <div id="freq-axis-bottom"></div>
+        <div class="canvas-overlay">
+          <div class="freq-cursor"    style="display:none"></div>
+          <div class="freq-selection" style="display:none"></div>
+          <div class="freq-tooltip"   style="display:none"></div>
+        </div>
       </div>
 
     </div>

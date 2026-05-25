@@ -14,6 +14,7 @@ import { SpectrumWSClient } from './ws_client.js';
 import { WaterfallRenderer }  from './waterfall.js';
 import { SpectrumRenderer }   from './spectrum.js';
 import { ControlPanel, formatHz } from './controls.js';
+import { CanvasInteraction }  from './interaction.js';
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ const waterfallCanvas  = document.getElementById('waterfall-canvas');
 const spectrumCanvas   = document.getElementById('spectrum-canvas');
 const freqAxisTop      = document.getElementById('freq-axis-top');
 const freqAxisBottom   = document.getElementById('freq-axis-bottom');
+const spectrumWrap     = document.getElementById('spectrum-wrap');
+const waterfallWrap    = document.getElementById('waterfall-wrap');
 
 // ── Renderers ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +57,27 @@ const controls = new ControlPanel({
     dbMax = mx;
     spectrum.setRange(mn, mx);
     ws.setRange(mn, mx);
+  },
+});
+
+// ── Canvas mouse interaction ──────────────────────────────────────────────────
+
+// eslint-disable-next-line no-unused-vars
+const interaction = new CanvasInteraction({
+  spectrumWrap,
+  waterfallWrap,
+  getCenter: () => centerHz,
+  getSpan:   () => spanHz,
+
+  onTune(hz) {
+    controls.tuneToHz(hz);
+  },
+
+  onRangeSelect(lo, hi) {
+    const newCenter = Math.round((lo + hi) / 2);
+    const newSpan   = Math.round(hi - lo);
+    controls.tuneToHz(newCenter);
+    controls.setSpanHz(newSpan);
   },
 });
 

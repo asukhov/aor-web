@@ -125,11 +125,11 @@ class TestAR5700DSerial(unittest.TestCase):
     def test_set_frequency_sends_correct_command(self):
         mock_s = MagicMock()
         mock_s.is_open = True
-        # Stub read() so _read_ascii_response doesn't hang
-        mock_s.read.side_effect = _make_response("RF", "0145800000")
+        # Stub read() so _read_ascii_response doesn't hang (not called by set_frequency)
+        mock_s.read.side_effect = _make_response("RF", "0145.800000")
         dev = self._build_device_with_mock_serial(mock_s)
         dev.set_frequency(145_800_000)
-        mock_s.write.assert_called_once_with(b"RF0145800000\r")
+        mock_s.write.assert_called_once_with(b"RF0145.800000\r")
 
     def test_set_mode_pads_to_two_digits(self):
         mock_s = MagicMock()
@@ -148,6 +148,30 @@ class TestAR5700DSerial(unittest.TestCase):
         dev = self._build_device_with_mock_serial(mock_s)
         freq = dev.get_frequency()
         self.assertEqual(freq, 433_500_000)
+
+    def test_get_frequency_parses_compact_mhz_response(self):
+        """Compact 'RF0102.200000 \\r\\n' (no space) format → 102 200 000 Hz."""
+        mock_s = MagicMock()
+        mock_s.is_open = True
+        # Simulate the real device response: no space between echo and value
+        raw = b"RF0102.200000 \r\n"
+        mock_s.read.side_effect = [bytes([b]) for b in raw]
+        dev = self._build_device_with_mock_serial(mock_s)
+        freq = dev.get_frequency()
+        self.assertEqual(freq, 102_200_000)
+
+    def test_parse_hz_integer_format(self):
+        """Hz-integer string (legacy/mock) parses correctly."""
+        self.assertEqual(AR5700D._parse_hz("0145800000"), 145_800_000)
+        self.assertEqual(AR5700D._parse_hz("0433500000"), 433_500_000)
+
+    def test_parse_hz_mhz_decimal_format(self):
+        """MHz-decimal string (real hardware) parses correctly."""
+        self.assertEqual(AR5700D._parse_hz("0145.800000"), 145_800_000)
+        self.assertEqual(AR5700D._parse_hz("0102.200000"), 102_200_000)
+        self.assertEqual(AR5700D._parse_hz("3700.000000"), 3_700_000_000)
+        # Rounding: sub-Hz remainder must round correctly
+        self.assertEqual(AR5700D._parse_hz("0145.8000004"), 145_800_000)
 
     def test_fd_response_with_echo(self):
         """FD response with 'FD ' echo prefix parsed correctly."""

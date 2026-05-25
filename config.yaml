@@ -19,7 +19,7 @@ receiver:
 spectrum:
   center_hz: 145800000           # Hz  — initial spectrum center
   span_hz:   500000              # Hz  — initial span (500 kHz)
-  fps: 10                        # waterfall frames per second
+  fps: 3                         # waterfall frames per second (keep low to preserve speaker audio)
   db_min: -120.0                 # dBm — display floor
   db_max: -20.0                  # dBm — display ceiling
 

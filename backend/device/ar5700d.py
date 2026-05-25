@@ -199,11 +199,6 @@ class AR5700D:
             time.sleep(0.2)
             self._serial.reset_input_buffer()
             self._serial.reset_output_buffer()
-            # Send a bare CR to flush any partial command stuck in the device's
-            # receive buffer; discard whatever it echoes back.
-            self._serial.write(b"\r")
-            time.sleep(0.1)
-            self._serial.reset_input_buffer()
             self._firmware = self._query_firmware_unlocked()
             log.info("Connected. Firmware: %s", self._firmware)
         except serial.SerialException as exc:
@@ -231,11 +226,11 @@ class AR5700D:
     def set_frequency(self, freq_hz: int) -> None:
         """Tune receiver to *freq_hz* Hz (100 kHz – 3.7 GHz)."""
         with self._lock:
-            self._send_command("RF", f"{freq_hz:010d}")
+            self._send_command("RF", f"{freq_hz / 1_000_000:011.6f}")
 
     def get_frequency(self) -> int:
         with self._lock:
-            return int(self._query_unlocked("RF"))
+            return self._parse_hz(self._query_unlocked("RF"))
 
     def set_mode(self, mode: int) -> None:
         """Set receive mode; use :class:`Mode` enum values or raw int."""
@@ -271,13 +266,13 @@ class AR5700D:
     def set_spectrum_center(self, freq_hz: int) -> None:
         """Set the spectrum analyser center frequency (CF command)."""
         with self._lock:
-            self._send_command("CF", f"{freq_hz:010d}")
+            self._send_command("CF", f"{freq_hz / 1_000_000:011.6f}")
             self._center_hz = freq_hz
 
     def set_spectrum_span(self, span_hz: int) -> None:
         """Set the spectrum analyser span in Hz (FF command)."""
         with self._lock:
-            self._send_command("FF", f"{span_hz:010d}")
+            self._send_command("FF", f"{span_hz / 1_000_000:011.6f}")
             self._span_hz = span_hz
 
     def get_spectrum(self) -> SpectrumFrame:
@@ -300,7 +295,7 @@ class AR5700D:
     def get_status(self) -> DeviceStatus:
         """Return a snapshot of the full device state (several serial queries)."""
         with self._lock:
-            freq = int(self._query_unlocked("RF"))
+            freq = self._parse_hz(self._query_unlocked("RF"))
             mode = int(self._query_unlocked("MD"))
             att  = int(self._query_unlocked("AT"))
             try:
@@ -352,7 +347,13 @@ class AR5700D:
         Returns the value portion of the response (after the command echo).
         Raises :class:`AR5700DTimeout` if no data arrives within the timeout.
 
-        If *expected_cmd* is given and the echo does not match, a warning is
+        Handles two response formats used by different AR5700D firmware versions:
+
+        * Spaced  : ``"RF 0145800000"``  — command echo, space, Hz integer
+        * Compact : ``"RF0145.800000"``  — command echo immediately followed by
+                    the value in MHz decimal (no space); seen on current firmware.
+
+        If *expected_cmd* is given and neither format matches, a warning is
         logged so protocol desyncs are visible in the log.
         """
         self._assert_connected()
@@ -368,13 +369,19 @@ class AR5700D:
                 break
         text = buf.decode("ascii", errors="replace").strip()
         log.debug("RX: %r", text)
-        # Response echoes the command name: "RF 0145800000" → return "0145800000"
-        parts = text.split(None, 1)
-        if expected_cmd and (not parts or parts[0] != expected_cmd):
+        if expected_cmd:
+            if text.startswith(expected_cmd + " "):
+                # Spaced format: "RF 0145800000" → "0145800000"
+                return text[len(expected_cmd):].strip()
+            if text.startswith(expected_cmd):
+                # Compact format: "RF0145.800000" → "0145.800000"
+                return text[len(expected_cmd):]
             log.warning(
-                "Protocol desync: sent %r but response echo was %r (full: %r)",
-                expected_cmd, parts[0] if parts else "", text[:60],
+                "Protocol desync: sent %r but response was %r",
+                expected_cmd, text[:60],
             )
+        # Fallback: split on whitespace
+        parts = text.split(None, 1)
         return parts[1] if len(parts) > 1 else parts[0]
 
     def _query_unlocked(self, cmd: str) -> str:
@@ -442,6 +449,20 @@ class AR5700D:
 
         log.debug("RX FD: %d bytes, suffix: %r", len(data), bytes(sfx_buf))
         return bytes(data)
+
+    @staticmethod
+    def _parse_hz(value: str) -> int:
+        """Convert a device frequency string to integer Hz.
+
+        Handles both formats returned by the AR5700D:
+
+        * MHz decimal : ``"0145.800000"``  → 145 800 000  (current firmware)
+        * Hz integer  : ``"0145800000"``   → 145 800 000  (legacy / mock)
+        """
+        s = value.strip()
+        if "." in s:
+            return int(round(float(s) * 1_000_000))
+        return int(s)
 
     @staticmethod
     def _auto_detect_port() -> Optional[str]:
