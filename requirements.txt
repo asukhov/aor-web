@@ -6,6 +6,7 @@
 
 fastapi>=0.111.0
 uvicorn>=0.29.0          # no [standard] — uvloop is Linux-only
+websockets>=12.0         # WebSocket support for uvicorn (Windows-safe, no uvloop dep)
 pyserial>=3.5
 numpy>=1.26.0
 pyyaml>=6.0.1

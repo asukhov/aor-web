@@ -193,8 +193,17 @@ class AR5700D:
                 timeout=self._timeout,
                 write_timeout=self._timeout,
             )
+            # Allow USB CDC ACM to settle, then discard any buffered data that
+            # the device may have sent (e.g. unsolicited spectrum frames left
+            # over from a previous SDR# session).
+            time.sleep(0.2)
             self._serial.reset_input_buffer()
             self._serial.reset_output_buffer()
+            # Send a bare CR to flush any partial command stuck in the device's
+            # receive buffer; discard whatever it echoes back.
+            self._serial.write(b"\r")
+            time.sleep(0.1)
+            self._serial.reset_input_buffer()
             self._firmware = self._query_firmware_unlocked()
             log.info("Connected. Firmware: %s", self._firmware)
         except serial.SerialException as exc:
@@ -336,12 +345,15 @@ class AR5700D:
         log.debug("TX: %r", packet)
         self._serial.write(packet)  # type: ignore[union-attr]
 
-    def _read_ascii_response(self) -> str:
+    def _read_ascii_response(self, expected_cmd: Optional[str] = None) -> str:
         """
         Read one ASCII response terminated by b' \\r\\n'.
 
         Returns the value portion of the response (after the command echo).
         Raises :class:`AR5700DTimeout` if no data arrives within the timeout.
+
+        If *expected_cmd* is given and the echo does not match, a warning is
+        logged so protocol desyncs are visible in the log.
         """
         self._assert_connected()
         buf = bytearray()
@@ -358,12 +370,23 @@ class AR5700D:
         log.debug("RX: %r", text)
         # Response echoes the command name: "RF 0145800000" → return "0145800000"
         parts = text.split(None, 1)
+        if expected_cmd and (not parts or parts[0] != expected_cmd):
+            log.warning(
+                "Protocol desync: sent %r but response echo was %r (full: %r)",
+                expected_cmd, parts[0] if parts else "", text[:60],
+            )
         return parts[1] if len(parts) > 1 else parts[0]
 
     def _query_unlocked(self, cmd: str) -> str:
-        """Send a query command and return the value string.  Lock must be held."""
+        """Send a query command and return the value string.  Lock must be held.
+
+        Flushes the input buffer before sending so that any stale bytes left by
+        a previous FD frame (or unsolicited device output) cannot pollute this
+        response.
+        """
+        self._serial.reset_input_buffer()  # type: ignore[union-attr]
         self._send_command(cmd)
-        return self._read_ascii_response()
+        return self._read_ascii_response(expected_cmd=cmd)
 
     def _query_firmware_unlocked(self) -> str:
         try:
@@ -380,8 +403,12 @@ class AR5700D:
             b'FD ' + <160 binary bytes> + b' \\r\\n'
 
         Some firmware variants may omit the 'FD ' echo — both cases are handled.
+        The suffix is consumed by reading until RESP_TERM (rather than a fixed
+        3-byte read) so firmware variants that use a shorter \\r\\n suffix are
+        tolerated without leaving bytes in the buffer.
         """
         self._assert_connected()
+        self._serial.reset_input_buffer()  # type: ignore[union-attr]
         self._serial.write(b"FD\r")  # type: ignore[union-attr]
 
         # Read the first 3 bytes to detect echo presence
@@ -390,19 +417,30 @@ class AR5700D:
             raise AR5700DTimeout("Timeout reading FD response prefix")
 
         if prefix == b"FD ":
-            # Normal case: echo present — read 160 data bytes + 3 suffix bytes
-            data   = self._serial.read(FD_BINS)      # type: ignore[union-attr]
-            _sfx   = self._serial.read(3)             # consume ' \r\n'
+            # Normal case: echo present — read 160 data bytes
+            data = self._serial.read(FD_BINS)  # type: ignore[union-attr]
         else:
             # No echo: the 3 bytes we read are already spectrum data
-            data   = prefix + self._serial.read(FD_BINS - 3)  # type: ignore[union-attr]
-            _sfx   = self._serial.read(3)
+            data = prefix + self._serial.read(FD_BINS - 3)  # type: ignore[union-attr]
 
         if len(data) < FD_BINS:
             raise AR5700DTimeout(
                 f"FD response truncated: expected {FD_BINS} bytes, got {len(data)}"
             )
-        log.debug("RX FD: %d bytes", len(data))
+
+        # Consume suffix by reading until RESP_TERM; handles both ' \r\n' (3 B)
+        # and '\r\n' (2 B) firmware variants without leaving bytes in the buffer.
+        sfx_buf = bytearray()
+        while len(sfx_buf) < 10:
+            ch = self._serial.read(1)  # type: ignore[union-attr]
+            if not ch:
+                log.debug("FD suffix read timeout after %d bytes: %r", len(sfx_buf), bytes(sfx_buf))
+                break
+            sfx_buf += ch
+            if sfx_buf.endswith(RESP_TERM):
+                break
+
+        log.debug("RX FD: %d bytes, suffix: %r", len(data), bytes(sfx_buf))
         return bytes(data)
 
     @staticmethod
