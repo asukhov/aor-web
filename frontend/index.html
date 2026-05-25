@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AOR AR5700D WebSDR</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── Header ──────────────────────────────────────────────────────── -->
+    <header id="header">
+      <div id="title">AOR AR5700D <span class="dim">WebSDR</span></div>
+      <div id="header-right">
+        <span id="signal-badge">Signal: <span id="signal-value">--</span> dBm</span>
+        <span id="status-indicator" class="status-disconnected" title="Connection status">
+          <span id="status-dot"></span>
+          <span id="status-text">Connecting…</span>
+        </span>
+      </div>
+    </header>
+
+    <!-- ── Controls bar ────────────────────────────────────────────────── -->
+    <div id="controls">
+
+      <div class="ctrl-group">
+        <label for="freq-input">Frequency</label>
+        <div class="freq-wrap">
+          <input type="text" id="freq-input" value="145.800" autocomplete="off"
+                 spellcheck="false" aria-label="Frequency in MHz" />
+          <span class="unit">MHz</span>
+        </div>
+        <div class="freq-arrows">
+          <button class="arrow-btn" id="freq-up"   title="+step">▲</button>
+          <button class="arrow-btn" id="freq-down" title="-step">▼</button>
+        </div>
+        <select id="freq-step" title="Tuning step">
+          <option value="1000">1 kHz</option>
+          <option value="5000">5 kHz</option>
+          <option value="10000" selected>10 kHz</option>
+          <option value="25000">25 kHz</option>
+          <option value="100000">100 kHz</option>
+          <option value="1000000">1 MHz</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="mode-select">Mode</label>
+        <select id="mode-select">
+          <option value="0">WFM</option>
+          <option value="1" selected>NFM</option>
+          <option value="2">AM</option>
+          <option value="3">LSB</option>
+          <option value="4">USB</option>
+          <option value="5">CW-U</option>
+          <option value="6">CW-L</option>
+          <option value="9">WAM</option>
+          <option value="40">DALL</option>
+          <option value="43">DMR</option>
+          <option value="44">P25</option>
+          <option value="45">D-STAR</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="span-select">Span</label>
+        <select id="span-select">
+          <option value="10000">10 kHz</option>
+          <option value="25000">25 kHz</option>
+          <option value="50000">50 kHz</option>
+          <option value="100000">100 kHz</option>
+          <option value="250000">250 kHz</option>
+          <option value="500000" selected>500 kHz</option>
+          <option value="1000000">1 MHz</option>
+          <option value="2000000">2 MHz</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group">
+        <label for="att-select">ATT</label>
+        <select id="att-select">
+          <option value="0" selected>Off</option>
+          <option value="1">10 dB</option>
+          <option value="2">20 dB</option>
+          <option value="3">30 dB</option>
+        </select>
+      </div>
+
+      <div class="ctrl-group range-group">
+        <label>dB range</label>
+        <div class="range-row">
+          <span class="range-label" id="db-min-label">-120</span>
+          <input type="range" id="db-min-slider" min="-140" max="-40" step="5" value="-120" />
+          <span class="range-sep">—</span>
+          <input type="range" id="db-max-slider" min="-80"  max="0"   step="5" value="-20"  />
+          <span class="range-label" id="db-max-label">-20</span>
+        </div>
+      </div>
+
+      <div class="ctrl-group">
+        <label>FPS</label>
+        <span id="fps-counter">--</span>
+      </div>
+
+    </div>
+
+    <!-- ── Display area ─────────────────────────────────────────────────── -->
+    <div id="display">
+
+      <!-- Spectrum curve -->
+      <div id="spectrum-wrap">
+        <canvas id="spectrum-canvas"></canvas>
+        <div id="freq-axis-top"></div>   <!-- frequency labels drawn by JS -->
+      </div>
+
+      <!-- Waterfall -->
+      <div id="waterfall-wrap">
+        <canvas id="waterfall-canvas"></canvas>
+        <div id="freq-axis-bottom"></div>
+      </div>
+
+    </div>
+
+  </div><!-- #app -->
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

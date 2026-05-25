@@ -1,0 +1,28 @@
+# AOR AR5700D WebSDR — configuration
+# Edit this file before starting the server.
+
+device:
+  # Serial port where the AR5700D control interface is connected.
+  # Windows examples: "COM3", "COM4"
+  # Linux examples:   "/dev/ttyACM0", "/dev/ttyUSB0"
+  # Set to null to enable auto-detection (searches for AOR device by name).
+  port: null
+  baudrate: 115200
+  timeout: 2.0          # seconds to wait for a serial response
+  mock: false           # true = use software simulation (no hardware needed)
+
+receiver:
+  default_frequency: 145800000   # Hz  — 145.800 MHz (2m FM calling channel)
+  default_mode: 1                # 01 = NFM
+  default_attenuator: 0          # 0 = off
+
+spectrum:
+  center_hz: 145800000           # Hz  — initial spectrum center
+  span_hz:   500000              # Hz  — initial span (500 kHz)
+  fps: 10                        # waterfall frames per second
+  db_min: -120.0                 # dBm — display floor
+  db_max: -20.0                  # dBm — display ceiling
+
+server:
+  host: "0.0.0.0"                # listen on all interfaces
+  port: 8080

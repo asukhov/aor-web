@@ -1,0 +1,11 @@
+# AOR AR5700D WebSDR — Python dependencies
+# All packages have pre-built Windows wheels; no compiler needed on the target machine.
+#
+# Install:  pip install -r requirements.txt
+# Run:      python run.py
+
+fastapi>=0.111.0
+uvicorn>=0.29.0          # no [standard] — uvloop is Linux-only
+pyserial>=3.5
+numpy>=1.26.0
+pyyaml>=6.0.1
